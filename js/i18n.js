@@ -65,7 +65,7 @@ const translations = {
     wa_header: (name) => `💪 *${name}*\n\nJouw oefeningen voor vandaag:`,
     wa_sets: 'sets',
     wa_reps: 'herhalingen',
-    wa_link_label: '📹 Instructievideo',
+    wa_link_label: 'Instructies',
     wa_footer: 'Veel succes! Heb je vragen, laat het me weten. 🙌',
 
     // Settings
@@ -157,7 +157,7 @@ const translations = {
     wa_header: (name) => `💪 *${name}*\n\nYour exercises for today:`,
     wa_sets: 'sets',
     wa_reps: 'reps',
-    wa_link_label: '📹 Instruction video',
+    wa_link_label: 'Instructions',
     wa_footer: 'Good luck! If you have any questions, let me know. 🙌',
 
     // Settings
