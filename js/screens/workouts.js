@@ -2,7 +2,7 @@
 // screens/workouts.js — Workout list, editor, detail
 // =====================================================
 import { getAll, getOne, addItem, putItem, deleteItem } from '../db.js';
-import { t, getLang } from '../i18n.js';
+import { t, tLang, getLang } from '../i18n.js';
 import { showToast, showConfirm, openModal, closeModal } from '../app.js';
 
 // ─────────────────────────────────────────
@@ -311,97 +311,135 @@ export async function renderWorkoutEditor(container, navigate, editId) {
 // Workout Detail + WhatsApp generator
 // ─────────────────────────────────────────
 export async function renderWorkoutDetail(container, navigate, workoutId) {
-  const workout  = await getOne('workouts', workoutId);
+  const workout      = await getOne('workouts', workoutId);
   const allExercises = await getAll('exercises');
-  const lang = getLang();
+  const uiLang       = getLang();
 
-  if (!workout) {
-    navigate('workouts', null, null);
-    return;
-  }
+  if (!workout) { navigate('workouts', null, null); return; }
+
+  // Message language is independent of the UI language
+  let msgLang = uiLang;
 
   function getExercise(id) { return allExercises.find(e => e.id === id); }
 
-  // Build WhatsApp message
-  function buildMessage() {
-    const header = t('wa_header', workout.name);
-    const lines = workout.items.map((item, idx) => {
+  function buildMessage(lang) {
+    const header = tLang('wa_header', lang, workout.name);
+    const lines = (workout.items || []).map((item, idx) => {
       const ex = getExercise(item.exerciseId);
       if (!ex) return '';
       const name = lang === 'nl' ? ex.nameNl : ex.nameEn;
-      let line = `${idx + 1}. *${name}*\n   ${item.sets} ${t('wa_sets')} × ${item.reps} ${t('wa_reps')}`;
-      if (ex.url) line += `\n   ${t('wa_link_label')}: ${ex.url}`;
+      let line = `${idx + 1}. *${name}*\n   ${item.sets} ${tLang('wa_sets', lang)} × ${item.reps} ${tLang('wa_reps', lang)}`;
+      if (ex.url) line += `\n   ${tLang('wa_link_label', lang)}: ${ex.url}`;
       return line;
     }).filter(Boolean).join('\n\n');
-
-    return `${header}\n\n${lines}\n\n${t('wa_footer')}`;
+    return `${header}\n\n${lines}\n\n${tLang('wa_footer', lang)}`;
   }
 
-  const message = buildMessage();
+  function renderDetail() {
+    const message = buildMessage(msgLang);
 
-  container.innerHTML = `
-    <div class="screen-content">
-      <div class="card" style="padding:16px;margin-bottom:12px">
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <div>
-            <div style="font-size:17px;font-weight:600;color:var(--text)">${escHtml(workout.name)}</div>
-            <div style="font-size:13px;color:var(--text-secondary);margin-top:2px">${t('exercise_count', workout.items?.length || 0)}</div>
+    container.innerHTML = `
+      <div class="screen-content">
+
+        <!-- Workout header card -->
+        <div class="card" style="padding:16px;margin-bottom:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+            <div style="min-width:0">
+              <div style="font-size:17px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(workout.name)}</div>
+              <div style="font-size:13px;color:var(--text-secondary);margin-top:2px">${t('exercise_count', workout.items?.length || 0)}</div>
+            </div>
+            <button class="btn btn-secondary" id="btn-edit-workout" style="flex-shrink:0">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+              ${t('edit')}
+            </button>
           </div>
-          <button class="btn btn-secondary" id="btn-edit-workout">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-            </svg>
-            ${t('edit')}
-          </button>
         </div>
+
+        <!-- Exercise list -->
+        ${workout.items?.length > 0 ? `
+          <p class="section-title">${t('workout_exercises')}</p>
+          ${workout.items.map((item, idx) => {
+            const ex = getExercise(item.exerciseId);
+            if (!ex) return '';
+            const name = uiLang === 'nl' ? ex.nameNl : ex.nameEn;
+            return `
+            <div class="workout-detail-exercise">
+              <div class="workout-detail-exercise-name">${idx + 1}. ${escHtml(name)}</div>
+              <div class="workout-detail-exercise-meta">${item.sets} sets × ${item.reps} ${uiLang === 'nl' ? 'herhalingen' : 'reps'}</div>
+              ${ex.url ? `<div class="workout-detail-exercise-link mt-8"><a href="${escHtml(ex.url)}" target="_blank" rel="noopener">📹 ${escHtml(ex.url)}</a></div>` : ''}
+            </div>`;
+          }).join('')}
+        ` : `<p style="color:var(--text-secondary);font-size:14px;padding:8px 0">${t('no_exercises_added')}</p>`}
+
+        <!-- WhatsApp section -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:20px;margin-bottom:8px">
+          <p class="section-title" style="margin:0">${t('whatsapp_preview_title')}</p>
+          <div class="msg-lang-row" style="margin:0">
+            <span class="msg-lang-label">${t('msg_lang_label')}:</span>
+            <div class="lang-toggle" style="margin:0">
+              <button id="msg-lang-nl" class="${msgLang === 'nl' ? 'active' : ''}">🇳🇱 NL</button>
+              <button id="msg-lang-en" class="${msgLang === 'en' ? 'active' : ''}">🇬🇧 EN</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="whatsapp-preview" id="wa-preview">${escHtml(message)}</div>
+
+        <button class="btn btn-primary btn-full" id="btn-copy-message">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+          ${t('copy_message')}
+        </button>
       </div>
+    `;
 
-      ${workout.items?.length > 0 ? `
-        <p class="section-title">${t('workout_exercises')}</p>
-        ${workout.items.map((item, idx) => {
-          const ex = getExercise(item.exerciseId);
-          if (!ex) return '';
-          const name = lang === 'nl' ? ex.nameNl : ex.nameEn;
-          return `
-          <div class="workout-detail-exercise">
-            <div class="workout-detail-exercise-name">${idx + 1}. ${escHtml(name)}</div>
-            <div class="workout-detail-exercise-meta">${item.sets} sets × ${item.reps} ${lang === 'nl' ? 'herhalingen' : 'reps'}</div>
-            ${ex.url ? `<div class="workout-detail-exercise-link mt-8"><a href="${escHtml(ex.url)}" target="_blank" rel="noopener">📹 ${escHtml(ex.url)}</a></div>` : ''}
-          </div>`;
-        }).join('')}
-      ` : `<p style="color:var(--text-secondary);font-size:14px;padding:8px 0">${t('no_exercises_added')}</p>`}
+    // Edit workout
+    container.querySelector('#btn-edit-workout').addEventListener('click', () => {
+      navigate('workouts', 'editor', workoutId);
+    });
 
-      <p class="section-title mt-16">${t('whatsapp_preview_title')}</p>
-      <div class="whatsapp-preview" id="wa-preview">${escHtml(message)}</div>
+    // Message language toggle — only update preview, don't re-render whole screen
+    container.querySelector('#msg-lang-nl').addEventListener('click', () => {
+      if (msgLang === 'nl') return;
+      msgLang = 'nl';
+      updatePreview();
+    });
+    container.querySelector('#msg-lang-en').addEventListener('click', () => {
+      if (msgLang === 'en') return;
+      msgLang = 'en';
+      updatePreview();
+    });
 
-      <button class="btn btn-primary btn-full" id="btn-copy-message">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-        </svg>
-        ${t('copy_message')}
-      </button>
-    </div>
-  `;
+    // Copy
+    container.querySelector('#btn-copy-message').addEventListener('click', async () => {
+      const msg = buildMessage(msgLang);
+      try {
+        await navigator.clipboard.writeText(msg);
+        showToast(t('message_copied'), 'success');
+      } catch {
+        showToast(t('copy_failed'), 'error');
+        const el = container.querySelector('#wa-preview');
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+      }
+    });
+  }
 
-  container.querySelector('#btn-edit-workout').addEventListener('click', () => {
-    navigate('workouts', 'editor', workoutId);
-  });
+  // Lightweight update — just swap preview text and toggle state
+  function updatePreview() {
+    container.querySelector('#wa-preview').textContent = buildMessage(msgLang);
+    container.querySelector('#msg-lang-nl').classList.toggle('active', msgLang === 'nl');
+    container.querySelector('#msg-lang-en').classList.toggle('active', msgLang === 'en');
+  }
 
-  container.querySelector('#btn-copy-message').addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(message);
-      showToast(t('message_copied'), 'success');
-    } catch {
-      showToast(t('copy_failed'), 'error');
-      // Fallback: select the text
-      const el = container.querySelector('#wa-preview');
-      const range = document.createRange();
-      range.selectNodeContents(el);
-      window.getSelection().removeAllRanges();
-      window.getSelection().addRange(range);
-    }
-  });
+  renderDetail();
 }
 
 function escHtml(str) {

@@ -72,6 +72,8 @@ const translations = {
     settings_title: 'Instellingen',
     language_section: 'Taal',
     language_label: 'Taal',
+    appearance_section: 'Weergave',
+    dark_mode_label: 'Donkere modus',
     data_section: 'Data',
     export_db: 'Database exporteren',
     export_db_sub: 'Sla alle oefeningen en workouts op als bestand',
@@ -81,9 +83,16 @@ const translations = {
     import_success: '✓ Database geïmporteerd!',
     import_error: 'Importeren mislukt. Controleer het bestand.',
     export_success: '✓ Database geëxporteerd!',
+    categories_section: 'Categorieën',
+    categories_sub: 'Beheer categorieën voor oefeningen',
+    add_category: 'Toevoegen',
+    category_placeholder: 'Nieuwe categorie...',
     about_section: 'Over',
     about_label: 'FysioApp',
     about_sub: 'Versie 1.0 — Gemaakt voor fysiotherapeuten',
+
+    // Workout detail — message language
+    msg_lang_label: 'Berichttaal',
   },
 
   en: {
@@ -155,6 +164,8 @@ const translations = {
     settings_title: 'Settings',
     language_section: 'Language',
     language_label: 'Language',
+    appearance_section: 'Appearance',
+    dark_mode_label: 'Dark mode',
     data_section: 'Data',
     export_db: 'Export database',
     export_db_sub: 'Save all exercises and workouts as a file',
@@ -164,9 +175,16 @@ const translations = {
     import_success: '✓ Database imported!',
     import_error: 'Import failed. Please check the file.',
     export_success: '✓ Database exported!',
+    categories_section: 'Categories',
+    categories_sub: 'Manage exercise categories',
+    add_category: 'Add',
+    category_placeholder: 'New category...',
     about_section: 'About',
     about_label: 'FysioApp',
     about_sub: 'Version 1.0 — Built for physiotherapists',
+
+    // Workout detail — message language
+    msg_lang_label: 'Message language',
   },
 };
 
@@ -174,6 +192,12 @@ let _lang = 'nl';
 
 export function t(key, ...args) {
   const val = translations[_lang]?.[key] ?? translations['en']?.[key] ?? key;
+  return typeof val === 'function' ? val(...args) : val;
+}
+
+// Translate using a specific language (e.g. for WhatsApp message in client's language)
+export function tLang(key, lang, ...args) {
+  const val = translations[lang]?.[key] ?? translations['en']?.[key] ?? key;
   return typeof val === 'function' ? val(...args) : val;
 }
 

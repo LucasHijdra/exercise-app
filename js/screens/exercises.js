@@ -3,7 +3,7 @@
 // =====================================================
 import { getAll, getOne, addItem, putItem, deleteItem } from '../db.js';
 import { t, getLang } from '../i18n.js';
-import { showToast, showConfirm } from '../app.js';
+import { showToast, showConfirm, getCategories } from '../app.js';
 
 export async function renderExerciseList(container, navigate) {
   const exercises = await getAll('exercises');
@@ -117,7 +117,7 @@ export async function renderExerciseForm(container, navigate, editId) {
   const exercise = editId ? await getOne('exercises', editId) : null;
   const lang = getLang();
 
-  const categories = t('exercise_categories');
+  const categories = await getCategories();
 
   container.innerHTML = `
     <div class="screen-content">
