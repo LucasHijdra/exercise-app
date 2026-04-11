@@ -10,6 +10,7 @@ import { showToast, showConfirm, getRegions, getMsgConfig, esc } from '../app.js
 // ─────────────────────────────────────────
 export async function renderExerciseList(container, navigate) {
   const exercises = await getAll('exercises');
+  const regions   = await getRegions();
   const lang      = getLang();
 
   container.innerHTML = `
@@ -63,7 +64,14 @@ export async function renderExerciseList(container, navigate) {
       grouped[cat].push(ex);
     });
 
-    listEl.innerHTML = Object.entries(grouped).sort(([a],[b]) => a.localeCompare(b)).map(([region, items]) => `
+    listEl.innerHTML = Object.entries(grouped).sort(([a], [b]) => {
+      const idxA = regions.indexOf(a);
+      const idxB = regions.indexOf(b);
+      if (idxA === -1 && idxB === -1) return a.localeCompare(b);
+      if (idxA === -1) return 1;
+      if (idxB === -1) return -1;
+      return idxA - idxB;
+    }).map(([region, items]) => `
       <p class="section-title">${esc(region)}</p>
       <div class="card">
         ${items.map(ex => {
@@ -272,10 +280,12 @@ export async function renderExerciseSend(container, navigate, exerciseId) {
     if (msgConfig.showDescriptions && desc?.trim()) lines.push(desc.trim());
     if (exercise.url?.trim()) lines.push(`${tLang('wa_link_label', lang)}: ${exercise.url}`);
 
+    const greeting = lang === 'nl' ? (msgConfig.greetingNl || '') : (msgConfig.greetingEn || '');
+    const closing  = lang === 'nl' ? (msgConfig.closingNl  || '') : (msgConfig.closingEn  || '');
     const parts = [];
-    if (msgConfig.greeting?.trim()) parts.push(msgConfig.greeting.trim());
+    if (greeting.trim()) parts.push(greeting.trim());
     parts.push(lines.join('\n'));
-    if (msgConfig.closing?.trim()) parts.push(msgConfig.closing.trim());
+    if (closing.trim()) parts.push(closing.trim());
     return parts.join('\n\n');
   }
 
