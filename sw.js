@@ -3,7 +3,7 @@
 // Cache-first strategy: app works fully offline after first visit
 // =====================================================
 
-const CACHE = 'fysio-app-v2';
+const CACHE = 'fysio-app-v3';
 
 const PRECACHE = [
   './',
@@ -13,8 +13,10 @@ const PRECACHE = [
   './js/app.js',
   './js/db.js',
   './js/i18n.js',
+  './js/screens/home.js',
   './js/screens/exercises.js',
   './js/screens/workouts.js',
+  './js/screens/advice.js',
   './js/screens/settings.js',
   './icons/icon-192.png',
   './icons/icon-512.png',

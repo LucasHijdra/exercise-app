@@ -1,15 +1,15 @@
 // =====================================================
-// screens/settings.js — Language, dark mode, categories, export/import
+// screens/settings.js — Language, dark mode, regions, message config, export/import
 // =====================================================
 import { exportDB, importDB } from '../db.js';
 import { t, getLang, setLang } from '../i18n.js';
 import { showToast, showConfirm, rerender, changeLang,
-         getTheme, setTheme, getCategories, saveCategories } from '../app.js';
+         getTheme, setTheme, getRegions, saveRegions,
+         getMsgConfig, saveMsgConfig, esc } from '../app.js';
 
 export async function renderSettings(container, navigate) {
-  const lang       = getLang();
-  const theme      = getTheme();
-  const categories = await getCategories();
+  const regions   = await getRegions();
+  const msgConfig = await getMsgConfig();
 
   function buildHTML() {
     return `
@@ -42,15 +42,42 @@ export async function renderSettings(container, navigate) {
         </div>
       </div>
 
-      <!-- Categories -->
+      <!-- Message settings -->
       <div class="settings-section">
-        <div class="settings-section-title">${t('categories_section')}</div>
-        <div id="category-list">
-          ${buildCategoryList(categories)}
+        <div class="settings-section-title">${t('msg_config_section')}</div>
+
+        <div class="form-group" style="padding:0 16px 12px">
+          <label class="form-label" for="msg-greeting">${t('msg_greeting_label')}</label>
+          <textarea class="form-textarea" id="msg-greeting" rows="2" placeholder="${t('msg_greeting_placeholder')}">${esc(msgConfig.greeting || '')}</textarea>
+        </div>
+
+        <div class="form-group" style="padding:0 16px 12px">
+          <label class="form-label" for="msg-closing">${t('msg_closing_label')}</label>
+          <textarea class="form-textarea" id="msg-closing" rows="2" placeholder="${t('msg_closing_placeholder')}">${esc(msgConfig.closing || '')}</textarea>
+        </div>
+
+        <div class="settings-item">
+          <span class="settings-item-label">${t('msg_show_desc_label')}</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="msg-show-desc" ${msgConfig.showDescriptions ? 'checked' : ''}>
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+
+        <div style="padding:0 16px 16px">
+          <button class="btn btn-primary btn-full" id="btn-save-msg-config">${t('save')}</button>
+        </div>
+      </div>
+
+      <!-- Regions -->
+      <div class="settings-section">
+        <div class="settings-section-title">${t('regions_section')}</div>
+        <div id="region-list">
+          ${buildRegionList(regions)}
         </div>
         <div class="add-category-row">
-          <input type="text" id="new-category-input" placeholder="${t('category_placeholder')}" autocomplete="off" maxlength="40">
-          <button class="btn btn-primary" id="btn-add-category">${t('add_category')}</button>
+          <input type="text" id="new-region-input" placeholder="${t('region_placeholder')}" autocomplete="off" maxlength="40">
+          <button class="btn btn-primary" id="btn-add-region">${t('add_region')}</button>
         </div>
       </div>
 
@@ -103,12 +130,12 @@ export async function renderSettings(container, navigate) {
     </div>`;
   }
 
-  function buildCategoryList(cats) {
-    if (!cats.length) return `<p style="padding:12px 16px;font-size:14px;color:var(--text-secondary)">${t('no_items')}</p>`;
-    return cats.map((cat, idx) => `
+  function buildRegionList(regs) {
+    if (!regs.length) return `<p style="padding:12px 16px;font-size:14px;color:var(--text-secondary)">${t('no_items')}</p>`;
+    return regs.map((r, idx) => `
       <div class="category-item" data-idx="${idx}">
-        <span class="category-item-name">${escHtml(cat)}</span>
-        <button class="btn-icon btn-icon-danger small" data-cat-delete="${idx}" aria-label="${t('delete')}">
+        <span class="category-item-name">${escHtml(r)}</span>
+        <button class="btn-icon btn-icon-danger small" data-region-delete="${idx}" aria-label="${t('delete')}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
           </svg>
@@ -118,44 +145,53 @@ export async function renderSettings(container, navigate) {
 
   container.innerHTML = buildHTML();
 
-  // Working copy of categories (avoid mutating while rendering)
-  let cats = [...categories];
+  // Working copy of regions
+  let regs = [...regions];
 
-  function refreshCategoryList() {
-    container.querySelector('#category-list').innerHTML = buildCategoryList(cats);
-    bindCategoryDeleteBtns();
+  function refreshRegionList() {
+    container.querySelector('#region-list').innerHTML = buildRegionList(regs);
+    bindRegionDeleteBtns();
   }
 
-  function bindCategoryDeleteBtns() {
-    container.querySelectorAll('[data-cat-delete]').forEach(btn => {
+  function bindRegionDeleteBtns() {
+    container.querySelectorAll('[data-region-delete]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const idx = parseInt(btn.dataset.catDelete);
-        cats.splice(idx, 1);
-        await saveCategories(cats);
-        refreshCategoryList();
+        const idx = parseInt(btn.dataset.regionDelete);
+        regs.splice(idx, 1);
+        await saveRegions(regs);
+        refreshRegionList();
       });
     });
   }
 
-  bindCategoryDeleteBtns();
+  bindRegionDeleteBtns();
 
-  // Add category
-  container.querySelector('#btn-add-category').addEventListener('click', async () => {
-    const input = container.querySelector('#new-category-input');
+  // Add region
+  container.querySelector('#btn-add-region').addEventListener('click', async () => {
+    const input = container.querySelector('#new-region-input');
     const name = input.value.trim();
     if (!name) return;
-    if (cats.includes(name)) {
-      showToast('Al bestaat', 'error');
+    if (regs.includes(name)) {
+      showToast(t('no_items'), 'error');
       return;
     }
-    cats.push(name);
-    await saveCategories(cats);
+    regs.push(name);
+    await saveRegions(regs);
     input.value = '';
-    refreshCategoryList();
+    refreshRegionList();
   });
 
-  container.querySelector('#new-category-input').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') container.querySelector('#btn-add-category').click();
+  container.querySelector('#new-region-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') container.querySelector('#btn-add-region').click();
+  });
+
+  // Save message config
+  container.querySelector('#btn-save-msg-config').addEventListener('click', async () => {
+    const greeting        = container.querySelector('#msg-greeting').value.trim();
+    const closing         = container.querySelector('#msg-closing').value.trim();
+    const showDescriptions = container.querySelector('#msg-show-desc').checked;
+    await saveMsgConfig({ greeting, closing, showDescriptions });
+    showToast(t('save') + ' ✓', 'success');
   });
 
   // Language toggle
