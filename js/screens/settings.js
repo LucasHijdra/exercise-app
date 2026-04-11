@@ -12,6 +12,9 @@ export async function renderSettings(container, navigate) {
   const msgConfig = await getMsgConfig();
 
   function buildHTML() {
+    const lang = getLang();
+    const greeting = lang === 'nl' ? (msgConfig.greetingNl || '') : (msgConfig.greetingEn || '');
+    const closing  = lang === 'nl' ? (msgConfig.closingNl  || '') : (msgConfig.closingEn  || '');
     return `
     <div class="screen-content">
 
@@ -48,12 +51,12 @@ export async function renderSettings(container, navigate) {
 
         <div class="form-group" style="padding:0 16px 12px">
           <label class="form-label" for="msg-greeting">${t('msg_greeting_label')}</label>
-          <textarea class="form-textarea" id="msg-greeting" rows="2" placeholder="${t('msg_greeting_placeholder')}">${esc(msgConfig.greeting || '')}</textarea>
+          <textarea class="form-textarea" id="msg-greeting" rows="2" placeholder="${t('msg_greeting_placeholder')}">${esc(greeting)}</textarea>
         </div>
 
         <div class="form-group" style="padding:0 16px 12px">
           <label class="form-label" for="msg-closing">${t('msg_closing_label')}</label>
-          <textarea class="form-textarea" id="msg-closing" rows="2" placeholder="${t('msg_closing_placeholder')}">${esc(msgConfig.closing || '')}</textarea>
+          <textarea class="form-textarea" id="msg-closing" rows="2" placeholder="${t('msg_closing_placeholder')}">${esc(closing)}</textarea>
         </div>
 
         <div class="settings-item">
@@ -135,11 +138,15 @@ export async function renderSettings(container, navigate) {
     return regs.map((r, idx) => `
       <div class="category-item" data-idx="${idx}">
         <span class="category-item-name">${escHtml(r)}</span>
-        <button class="btn-icon btn-icon-danger small" data-region-delete="${idx}" aria-label="${t('delete')}">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
+        <div style="display:flex;gap:2px;align-items:center">
+          <button class="btn-icon small" data-region-up="${idx}" ${idx === 0 ? 'disabled' : ''} aria-label="Omhoog">↑</button>
+          <button class="btn-icon small" data-region-down="${idx}" ${idx === regs.length - 1 ? 'disabled' : ''} aria-label="Omlaag">↓</button>
+          <button class="btn-icon btn-icon-danger small" data-region-delete="${idx}" aria-label="${t('delete')}">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
       </div>`).join('');
   }
 
@@ -150,10 +157,10 @@ export async function renderSettings(container, navigate) {
 
   function refreshRegionList() {
     container.querySelector('#region-list').innerHTML = buildRegionList(regs);
-    bindRegionDeleteBtns();
+    bindRegionButtons();
   }
 
-  function bindRegionDeleteBtns() {
+  function bindRegionButtons() {
     container.querySelectorAll('[data-region-delete]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const idx = parseInt(btn.dataset.regionDelete);
@@ -162,9 +169,29 @@ export async function renderSettings(container, navigate) {
         refreshRegionList();
       });
     });
+    container.querySelectorAll('[data-region-up]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const idx = parseInt(btn.dataset.regionUp);
+        if (idx > 0) {
+          [regs[idx - 1], regs[idx]] = [regs[idx], regs[idx - 1]];
+          await saveRegions(regs);
+          refreshRegionList();
+        }
+      });
+    });
+    container.querySelectorAll('[data-region-down]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const idx = parseInt(btn.dataset.regionDown);
+        if (idx < regs.length - 1) {
+          [regs[idx], regs[idx + 1]] = [regs[idx + 1], regs[idx]];
+          await saveRegions(regs);
+          refreshRegionList();
+        }
+      });
+    });
   }
 
-  bindRegionDeleteBtns();
+  bindRegionButtons();
 
   // Add region
   container.querySelector('#btn-add-region').addEventListener('click', async () => {
@@ -185,12 +212,21 @@ export async function renderSettings(container, navigate) {
     if (e.key === 'Enter') container.querySelector('#btn-add-region').click();
   });
 
-  // Save message config
+  // Save message config (language-specific greeting/closing)
   container.querySelector('#btn-save-msg-config').addEventListener('click', async () => {
-    const greeting        = container.querySelector('#msg-greeting').value.trim();
-    const closing         = container.querySelector('#msg-closing').value.trim();
+    const lang             = getLang();
+    const greeting         = container.querySelector('#msg-greeting').value.trim();
+    const closing          = container.querySelector('#msg-closing').value.trim();
     const showDescriptions = container.querySelector('#msg-show-desc').checked;
-    await saveMsgConfig({ greeting, closing, showDescriptions });
+    const updated = { ...msgConfig, showDescriptions };
+    if (lang === 'nl') {
+      updated.greetingNl = greeting;
+      updated.closingNl  = closing;
+    } else {
+      updated.greetingEn = greeting;
+      updated.closingEn  = closing;
+    }
+    await saveMsgConfig(updated);
     showToast(t('save') + ' ✓', 'success');
   });
 

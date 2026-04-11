@@ -12,11 +12,11 @@ import { advTitle, advText } from './advice.js';
 // Workout Editor (create + edit)
 // ─────────────────────────────────────────
 export async function renderWorkoutEditor(container, navigate, editId, returnRegion) {
-  const workout    = editId ? await getOne('workouts', editId) : null;
-  const all        = await getAll('exercises');
-  const allAdvice  = await getAll('advice');
-  const regions    = await getRegions();
-  const lang       = getLang();
+  const workout      = editId ? await getOne('workouts', editId) : null;
+  const all          = await getAll('exercises');
+  const allAdvice    = await getAll('advice');
+  const regions      = await getRegions();
+  const lang         = getLang();
 
   let items       = (workout?.items || []).map(i => ({ ...i }));
   let adviceItems = (workout?.adviceItems || []).map(a => ({ ...a }));
@@ -149,16 +149,28 @@ export async function renderWorkoutEditor(container, navigate, editId, returnReg
     if (!all.length) { showToast(t('no_exercises_available'), 'error'); return; }
     let q = '';
 
-    // Sort exercises by region then name
+    // Sort exercises: workout's selected region first, then by settings order, then by name
     function filtered() {
+      const currentRegion = container.querySelector('#workout-region')?.value || workout?.region || '';
       return all.filter(ex => {
         const name = lang === 'nl' ? ex.nameNl : ex.nameEn;
         return name.toLowerCase().includes(q.toLowerCase());
       }).sort((a, b) => {
         const ra = a.category || '';
         const rb = b.category || '';
-        if (ra !== rb) return ra.localeCompare(rb);
-        return (lang === 'nl' ? a.nameNl : a.nameEn).localeCompare(lang === 'nl' ? b.nameNl : b.nameEn);
+        if (ra === rb) return (lang === 'nl' ? a.nameNl : a.nameEn).localeCompare(lang === 'nl' ? b.nameNl : b.nameEn);
+        // Workout's current region goes first
+        if (currentRegion) {
+          if (ra === currentRegion && rb !== currentRegion) return -1;
+          if (rb === currentRegion && ra !== currentRegion) return 1;
+        }
+        // Then by region order from settings
+        const idxA = regions.indexOf(ra);
+        const idxB = regions.indexOf(rb);
+        if (idxA === -1 && idxB === -1) return ra.localeCompare(rb);
+        if (idxA === -1) return 1;
+        if (idxB === -1) return -1;
+        return idxA - idxB;
       });
     }
 
@@ -294,6 +306,7 @@ export async function renderWorkoutDetail(container, navigate, workoutId, return
   const allExercises = await getAll('exercises');
   const allAdvice    = await getAll('advice');
   const msgConfig    = await getMsgConfig();
+  const regions      = await getRegions();
   const uiLang       = getLang();
 
   if (!workout) { navigate('home', null, null); return; }
@@ -316,8 +329,10 @@ export async function renderWorkoutDetail(container, navigate, workoutId, return
 
   // ── Message builder (no title, bilingual advice) ──
   function buildMessage(lang) {
+    const greeting = lang === 'nl' ? (msgConfig.greetingNl || '') : (msgConfig.greetingEn || '');
+    const closing  = lang === 'nl' ? (msgConfig.closingNl  || '') : (msgConfig.closingEn  || '');
     const parts = [];
-    if (msgConfig.greeting?.trim()) parts.push(msgConfig.greeting.trim());
+    if (greeting.trim()) parts.push(greeting.trim());
     // NOTE: workout title intentionally NOT included
 
     // Group exercises by region for display
@@ -330,7 +345,15 @@ export async function renderWorkoutDetail(container, navigate, workoutId, return
       byRegion[region].push(item);
     });
 
-    const regionOrder = Object.keys(byRegion).sort();
+    // Sort regions by settings order
+    const regionOrder = Object.keys(byRegion).sort((a, b) => {
+      const idxA = regions.indexOf(a);
+      const idxB = regions.indexOf(b);
+      if (idxA === -1 && idxB === -1) return a.localeCompare(b);
+      if (idxA === -1) return 1;
+      if (idxB === -1) return -1;
+      return idxA - idxB;
+    });
     let exNumber = 1;
 
     const exLines = [];
@@ -363,7 +386,7 @@ export async function renderWorkoutDetail(container, navigate, workoutId, return
       if (lines.length) parts.push(lines.join('\n'));
     }
 
-    if (msgConfig.closing?.trim()) parts.push(msgConfig.closing.trim());
+    if (closing.trim()) parts.push(closing.trim());
     return parts.join('\n\n');
   }
 
@@ -440,11 +463,19 @@ export async function renderWorkoutDetail(container, navigate, workoutId, return
       return;
     }
 
-    // Sort by exercise region, then by current order within region
+    // Sort by exercise region (using settings order), preserving insertion order within each region
     const sorted = [...sessionItems].sort((a, b) => {
       const exA = getEx(a.exerciseId);
       const exB = getEx(b.exerciseId);
-      return (exA?.category || '').localeCompare(exB?.category || '');
+      const ra = exA?.category || '';
+      const rb = exB?.category || '';
+      if (ra === rb) return 0;
+      const idxA = regions.indexOf(ra);
+      const idxB = regions.indexOf(rb);
+      if (idxA === -1 && idxB === -1) return ra.localeCompare(rb);
+      if (idxA === -1) return 1;
+      if (idxB === -1) return -1;
+      return idxA - idxB;
     });
 
     // Group by region for rendering
@@ -458,7 +489,16 @@ export async function renderWorkoutDetail(container, navigate, workoutId, return
 
     let numberCounter = 1;
     let html = '';
-    Object.entries(grouped).sort(([a],[b]) => a.localeCompare(b)).forEach(([region, entries]) => {
+    Object.entries(grouped).sort(([a], [b]) => {
+      const realA = a === '—' ? '' : a;
+      const realB = b === '—' ? '' : b;
+      const idxA = regions.indexOf(realA);
+      const idxB = regions.indexOf(realB);
+      if (idxA === -1 && idxB === -1) return a.localeCompare(b);
+      if (idxA === -1) return 1;
+      if (idxB === -1) return -1;
+      return idxA - idxB;
+    }).forEach(([region, entries]) => {
       html += `<div class="session-region-label" style="font-size:12px;font-weight:600;color:var(--text-secondary);padding:8px 0 4px;text-transform:uppercase;letter-spacing:0.04em">${esc(region)}</div>`;
       entries.forEach(({ item, originalIdx }) => {
         const ex = getEx(item.exerciseId);
@@ -568,8 +608,19 @@ export async function renderWorkoutDetail(container, navigate, workoutId, return
         }).sort((a, b) => {
           const ra = a.category || '';
           const rb = b.category || '';
-          if (ra !== rb) return ra.localeCompare(rb);
-          return (lang === 'nl' ? a.nameNl : a.nameEn).localeCompare(lang === 'nl' ? b.nameNl : b.nameEn);
+          if (ra === rb) return (lang === 'nl' ? a.nameNl : a.nameEn).localeCompare(lang === 'nl' ? b.nameNl : b.nameEn);
+          // Workout's region first
+          if (workout.region) {
+            if (ra === workout.region && rb !== workout.region) return -1;
+            if (rb === workout.region && ra !== workout.region) return 1;
+          }
+          // Then by settings region order
+          const idxA = regions.indexOf(ra);
+          const idxB = regions.indexOf(rb);
+          if (idxA === -1 && idxB === -1) return ra.localeCompare(rb);
+          if (idxA === -1) return 1;
+          if (idxB === -1) return -1;
+          return idxA - idxB;
         });
       }
 
