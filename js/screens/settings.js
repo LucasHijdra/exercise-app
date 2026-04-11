@@ -12,9 +12,6 @@ export async function renderSettings(container, navigate) {
   const msgConfig = await getMsgConfig();
 
   function buildHTML() {
-    const lang = getLang();
-    const greeting = lang === 'nl' ? (msgConfig.greetingNl || '') : (msgConfig.greetingEn || '');
-    const closing  = lang === 'nl' ? (msgConfig.closingNl  || '') : (msgConfig.closingEn  || '');
     return `
     <div class="screen-content">
 
@@ -49,14 +46,24 @@ export async function renderSettings(container, navigate) {
       <div class="settings-section">
         <div class="settings-section-title">${t('msg_config_section')}</div>
 
+        <div style="padding:4px 16px 2px;font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em">🇳🇱 Nederlands</div>
+        <div class="form-group" style="padding:4px 16px 8px">
+          <label class="form-label" for="msg-greeting-nl">Aanhef</label>
+          <textarea class="form-textarea" id="msg-greeting-nl" rows="2" placeholder="Bijv. Beste cliënt,">${esc(msgConfig.greetingNl || '')}</textarea>
+        </div>
         <div class="form-group" style="padding:0 16px 12px">
-          <label class="form-label" for="msg-greeting">${t('msg_greeting_label')}</label>
-          <textarea class="form-textarea" id="msg-greeting" rows="2" placeholder="${t('msg_greeting_placeholder')}">${esc(greeting)}</textarea>
+          <label class="form-label" for="msg-closing-nl">Afsluiting</label>
+          <textarea class="form-textarea" id="msg-closing-nl" rows="2" placeholder="Bijv. Met vriendelijke groet,">${esc(msgConfig.closingNl || '')}</textarea>
         </div>
 
+        <div style="padding:4px 16px 2px;font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em">🇬🇧 English</div>
+        <div class="form-group" style="padding:4px 16px 8px">
+          <label class="form-label" for="msg-greeting-en">Greeting</label>
+          <textarea class="form-textarea" id="msg-greeting-en" rows="2" placeholder="E.g. Dear client,">${esc(msgConfig.greetingEn || '')}</textarea>
+        </div>
         <div class="form-group" style="padding:0 16px 12px">
-          <label class="form-label" for="msg-closing">${t('msg_closing_label')}</label>
-          <textarea class="form-textarea" id="msg-closing" rows="2" placeholder="${t('msg_closing_placeholder')}">${esc(closing)}</textarea>
+          <label class="form-label" for="msg-closing-en">Closing</label>
+          <textarea class="form-textarea" id="msg-closing-en" rows="2" placeholder="E.g. Kind regards,">${esc(msgConfig.closingEn || '')}</textarea>
         </div>
 
         <div class="settings-item">
@@ -212,21 +219,15 @@ export async function renderSettings(container, navigate) {
     if (e.key === 'Enter') container.querySelector('#btn-add-region').click();
   });
 
-  // Save message config (language-specific greeting/closing)
+  // Save message config — all four fields in one go, no language dependency
   container.querySelector('#btn-save-msg-config').addEventListener('click', async () => {
-    const lang             = getLang();
-    const greeting         = container.querySelector('#msg-greeting').value.trim();
-    const closing          = container.querySelector('#msg-closing').value.trim();
-    const showDescriptions = container.querySelector('#msg-show-desc').checked;
-    const updated = { ...msgConfig, showDescriptions };
-    if (lang === 'nl') {
-      updated.greetingNl = greeting;
-      updated.closingNl  = closing;
-    } else {
-      updated.greetingEn = greeting;
-      updated.closingEn  = closing;
-    }
-    await saveMsgConfig(updated);
+    await saveMsgConfig({
+      greetingNl:       container.querySelector('#msg-greeting-nl').value.trim(),
+      closingNl:        container.querySelector('#msg-closing-nl').value.trim(),
+      greetingEn:       container.querySelector('#msg-greeting-en').value.trim(),
+      closingEn:        container.querySelector('#msg-closing-en').value.trim(),
+      showDescriptions: container.querySelector('#msg-show-desc').checked,
+    });
     showToast(t('save') + ' ✓', 'success');
   });
 
