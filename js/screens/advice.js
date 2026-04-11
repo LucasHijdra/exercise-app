@@ -1,19 +1,35 @@
 // =====================================================
 // screens/advice.js — Standard advice management
-// advice entry: { id, region, title, text, createdAt }
+// advice entry: { id, region, titleNl, titleEn, textNl, textEn, createdAt }
+// (backward compat: old entries may have title/text instead)
 // =====================================================
 import { getAll, getOne, addItem, putItem, deleteItem } from '../db.js';
 import { t, getLang } from '../i18n.js';
 import { showToast, showConfirm, getRegions, esc } from '../app.js';
+
+// Helper: get display title in the given language (falls back to other lang or legacy field)
+export function advTitle(adv, lang) {
+  if (lang === 'nl') return adv.titleNl || adv.titleEn || adv.title || '';
+  return adv.titleEn || adv.titleNl || adv.title || '';
+}
+
+// Helper: get text in the given language (falls back gracefully)
+export function advText(adv, lang) {
+  if (lang === 'nl') return adv.textNl || adv.textEn || adv.text || '';
+  return adv.textEn || adv.textNl || adv.text || '';
+}
 
 // ─────────────────────────────────────────
 // Advice List
 // ─────────────────────────────────────────
 export async function renderAdviceList(container, navigate) {
   const adviceList = await getAll('advice');
-  const regions    = await getRegions();
+  const lang       = getLang();
 
-  adviceList.sort((a, b) => (a.region || '').localeCompare(b.region || '') || a.title.localeCompare(b.title));
+  adviceList.sort((a, b) =>
+    (a.region || '').localeCompare(b.region || '') ||
+    advTitle(a, lang).localeCompare(advTitle(b, lang))
+  );
 
   container.innerHTML = `
     <div class="screen-content">
@@ -48,12 +64,16 @@ export async function renderAdviceList(container, navigate) {
     listEl.innerHTML = Object.entries(grouped).sort(([a],[b]) => a.localeCompare(b)).map(([region, items]) => `
       <p class="section-title">${esc(region)}</p>
       <div class="card">
-        ${items.map(a => `
+        ${items.map(a => {
+          const title    = advTitle(a, lang);
+          const preview  = advText(a, lang);
+          const missingEn = !a.titleEn && !a.textEn;
+          return `
           <div class="advice-card-item" data-id="${a.id}">
             <div style="display:flex;align-items:flex-start;gap:8px">
               <div style="flex:1;min-width:0">
-                <div class="advice-card-title">${esc(a.title)}</div>
-                <div class="advice-card-preview">${esc(a.text)}</div>
+                <div class="advice-card-title">${esc(title)}${missingEn ? ' <span style="color:var(--warning,#f59e0b);font-size:11px">EN?</span>' : ''}</div>
+                <div class="advice-card-preview">${esc(preview)}</div>
               </div>
               <button class="btn-icon btn-icon-danger small" data-delete="${a.id}" aria-label="${t('delete')}">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -65,7 +85,8 @@ export async function renderAdviceList(container, navigate) {
                 <polyline points="9 18 15 12 9 6"/>
               </svg>
             </div>
-          </div>`).join('')}
+          </div>`;
+        }).join('')}
       </div>`).join('');
 
     // Tap to edit
@@ -94,7 +115,7 @@ export async function renderAdviceList(container, navigate) {
 }
 
 // ─────────────────────────────────────────
-// Advice Form (add / edit)
+// Advice Form (add / edit) — bilingual
 // ─────────────────────────────────────────
 export async function renderAdviceForm(container, navigate, editId) {
   const entry   = editId ? await getOne('advice', editId) : null;
@@ -114,15 +135,25 @@ export async function renderAdviceForm(container, navigate, editId) {
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="advice-title">${t('advice_title_field')} *</label>
-          <input class="form-input" id="advice-title" type="text" value="${esc(entry?.title || '')}" autocomplete="off">
-          <div class="form-error hidden" id="err-advice-title">${t('required_field')}</div>
+          <label class="form-label" for="advice-title-nl">🇳🇱 ${t('advice_title_nl')}</label>
+          <input class="form-input" id="advice-title-nl" type="text" value="${esc(entry?.titleNl || entry?.title || '')}" autocomplete="off">
+          <div class="form-error hidden" id="err-advice-title-nl">${t('required_field')}</div>
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="advice-text">${t('advice_text_field')} *</label>
-          <textarea class="form-textarea" id="advice-text" rows="6">${esc(entry?.text || '')}</textarea>
-          <div class="form-error hidden" id="err-advice-text">${t('required_field')}</div>
+          <label class="form-label" for="advice-text-nl">🇳🇱 ${t('advice_text_nl')}</label>
+          <textarea class="form-textarea" id="advice-text-nl" rows="4">${esc(entry?.textNl || entry?.text || '')}</textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="advice-title-en">🇬🇧 ${t('advice_title_en')}</label>
+          <input class="form-input" id="advice-title-en" type="text" value="${esc(entry?.titleEn || '')}" autocomplete="off">
+          <div class="form-error hidden" id="err-advice-title-en">${t('required_field')}</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="advice-text-en">🇬🇧 ${t('advice_text_en')}</label>
+          <textarea class="form-textarea" id="advice-text-en" rows="4">${esc(entry?.textEn || '')}</textarea>
         </div>
       </div>
 
@@ -134,21 +165,23 @@ export async function renderAdviceForm(container, navigate, editId) {
   `;
 
   container.querySelector('#btn-save-advice').addEventListener('click', async () => {
-    const title  = container.querySelector('#advice-title').value.trim();
-    const text   = container.querySelector('#advice-text').value.trim();
+    const titleNl = container.querySelector('#advice-title-nl').value.trim();
+    const titleEn = container.querySelector('#advice-title-en').value.trim();
     let valid = true;
 
-    if (!title) { container.querySelector('#err-advice-title').classList.remove('hidden'); valid = false; }
-    else          container.querySelector('#err-advice-title').classList.add('hidden');
-    if (!text)  { container.querySelector('#err-advice-text').classList.remove('hidden'); valid = false; }
-    else          container.querySelector('#err-advice-text').classList.add('hidden');
+    if (!titleNl) { container.querySelector('#err-advice-title-nl').classList.remove('hidden'); valid = false; }
+    else            container.querySelector('#err-advice-title-nl').classList.add('hidden');
+    if (!titleEn) { container.querySelector('#err-advice-title-en').classList.remove('hidden'); valid = false; }
+    else            container.querySelector('#err-advice-title-en').classList.add('hidden');
 
     if (!valid) return;
 
     const data = {
-      region: container.querySelector('#advice-region').value,
-      title,
-      text,
+      region:   container.querySelector('#advice-region').value,
+      titleNl,
+      titleEn,
+      textNl:   container.querySelector('#advice-text-nl').value.trim(),
+      textEn:   container.querySelector('#advice-text-en').value.trim(),
       createdAt: entry?.createdAt || Date.now(),
     };
 

@@ -6,21 +6,29 @@ import { t, tLang, getLang } from '../i18n.js';
 import { showToast, showConfirm, openModal, closeModal,
          getRegions, getMsgConfig, esc } from '../app.js';
 import { renderFreqUI, bindFreqUI } from './exercises.js';
+import { advTitle, advText } from './advice.js';
 
 // ─────────────────────────────────────────
 // Workout Editor (create + edit)
 // ─────────────────────────────────────────
 export async function renderWorkoutEditor(container, navigate, editId, returnRegion) {
-  const workout = editId ? await getOne('workouts', editId) : null;
-  const all     = await getAll('exercises');
-  const regions = await getRegions();
-  const lang    = getLang();
+  const workout    = editId ? await getOne('workouts', editId) : null;
+  const all        = await getAll('exercises');
+  const allAdvice  = await getAll('advice');
+  const regions    = await getRegions();
+  const lang       = getLang();
 
-  let items = (workout?.items || []).map(i => ({ ...i }));
+  let items       = (workout?.items || []).map(i => ({ ...i }));
+  let adviceItems = (workout?.adviceItems || []).map(a => ({ ...a }));
 
   function exName(id) {
     const ex = all.find(e => e.id === id);
     return ex ? (lang === 'nl' ? ex.nameNl : ex.nameEn) : '?';
+  }
+
+  function adviceName(adviceId) {
+    const adv = allAdvice.find(a => a.id === adviceId);
+    return adv ? advTitle(adv, lang) : '?';
   }
 
   function renderItems() {
@@ -72,6 +80,32 @@ export async function renderWorkoutEditor(container, navigate, editId, returnReg
     });
   }
 
+  function renderAdviceItems() {
+    const el = container.querySelector('#workout-advice-items');
+    if (!adviceItems.length) {
+      el.innerHTML = `<p style="color:var(--text-secondary);font-size:14px;padding:4px 0">${t('no_advice_added')}</p>`;
+      return;
+    }
+    el.innerHTML = adviceItems.map((a, idx) => `
+      <div class="workout-exercise-item" data-advidx="${idx}">
+        <div class="workout-exercise-header">
+          <div class="workout-exercise-name">${esc(adviceName(a.adviceId))}</div>
+          <button class="btn-icon btn-icon-danger small" data-remove-adv="${idx}">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      </div>`).join('');
+
+    el.querySelectorAll('[data-remove-adv]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        adviceItems.splice(parseInt(btn.dataset.removeAdv), 1);
+        renderAdviceItems();
+      });
+    });
+  }
+
   container.innerHTML = `
     <div class="screen-content">
       <div class="form-section">
@@ -96,27 +130,60 @@ export async function renderWorkoutEditor(container, navigate, editId, returnReg
       </div>
 
       <div class="form-section">
+        <div class="form-section-title">${t('session_advice_title')}</div>
+        <div id="workout-advice-items"></div>
+        <button class="btn btn-secondary btn-full mt-8" id="btn-add-adv-editor">+ ${t('add_advice_btn')}</button>
+      </div>
+
+      <div class="form-section">
         <button class="btn btn-primary btn-full" id="btn-save">${t('save')}</button>
       </div>
     </div>
   `;
 
   renderItems();
+  renderAdviceItems();
 
   // Exercise picker modal
   container.querySelector('#btn-add-ex').addEventListener('click', () => {
     if (!all.length) { showToast(t('no_exercises_available'), 'error'); return; }
     let q = '';
 
+    // Sort exercises by region then name
     function filtered() {
       return all.filter(ex => {
         const name = lang === 'nl' ? ex.nameNl : ex.nameEn;
         return name.toLowerCase().includes(q.toLowerCase());
-      }).sort((a, b) => (lang === 'nl' ? a.nameNl : a.nameEn).localeCompare(lang === 'nl' ? b.nameNl : b.nameEn));
+      }).sort((a, b) => {
+        const ra = a.category || '';
+        const rb = b.category || '';
+        if (ra !== rb) return ra.localeCompare(rb);
+        return (lang === 'nl' ? a.nameNl : a.nameEn).localeCompare(lang === 'nl' ? b.nameNl : b.nameEn);
+      });
     }
 
     function modalHTML() {
       const list = filtered();
+      // Group by region for display
+      const grouped = {};
+      list.forEach(ex => {
+        const r = ex.category || '—';
+        if (!grouped[r]) grouped[r] = [];
+        grouped[r].push(ex);
+      });
+      const groupedHTML = Object.entries(grouped).map(([region, exs]) => `
+        <div class="section-title" style="padding:8px 4px 4px;font-size:12px;font-weight:600;color:var(--text-secondary)">${esc(region)}</div>
+        ${exs.map(ex => {
+          const name = lang === 'nl' ? ex.nameNl : ex.nameEn;
+          return `<div class="card-item" data-pick="${ex.id}" data-sets="${ex.defaultSets}" data-reps="${ex.defaultReps}">
+            <div class="card-item-content">
+              <div class="card-item-title">${esc(name)}</div>
+              <div class="card-item-subtitle">${ex.defaultSets}×${ex.defaultReps}</div>
+            </div>
+          </div>`;
+        }).join('')}`
+      ).join('');
+
       return `
         <div class="modal-header">
           <span class="modal-title">${t('select_exercise')}</span>
@@ -130,23 +197,12 @@ export async function renderWorkoutEditor(container, navigate, editId, returnReg
             <input type="search" id="modal-search" placeholder="${t('search')}" value="${q}" autocomplete="off">
           </div>
           <div class="card">
-            ${list.length === 0 ? `<div style="padding:16px;color:var(--text-secondary);font-size:14px">${t('no_items')}</div>` :
-              list.map(ex => {
-                const name = lang === 'nl' ? ex.nameNl : ex.nameEn;
-                return `<div class="card-item" data-pick="${ex.id}" data-sets="${ex.defaultSets}" data-reps="${ex.defaultReps}">
-                  <div class="card-item-content">
-                    <div class="card-item-title">${esc(name)}</div>
-                    <div class="card-item-subtitle">${ex.defaultSets}×${ex.defaultReps} · <span class="badge">${esc(ex.category||'')}</span></div>
-                  </div>
-                </div>`;
-              }).join('')}
+            ${list.length === 0 ? `<div style="padding:16px;color:var(--text-secondary);font-size:14px">${t('no_items')}</div>` : groupedHTML}
           </div>
         </div>`;
     }
 
-    openModal(modalHTML(), (box) => {
-      bindModal(box);
-    });
+    openModal(modalHTML(), (box) => { bindModal(box); });
 
     function bindModal(box) {
       box.querySelector('#modal-close')?.addEventListener('click', closeModal);
@@ -159,12 +215,54 @@ export async function renderWorkoutEditor(container, navigate, editId, returnReg
       });
       box.querySelectorAll('[data-pick]').forEach(el => {
         el.addEventListener('click', () => {
-          items.push({ exerciseId: parseInt(el.dataset.pick), sets: parseInt(el.dataset.sets)||3, reps: parseInt(el.dataset.reps)||10 });
+          const ex = all.find(e => e.id === parseInt(el.dataset.pick));
+          items.push({
+            exerciseId: parseInt(el.dataset.pick),
+            sets: parseInt(el.dataset.sets) || 3,
+            reps: parseInt(el.dataset.reps) || 10,
+          });
           closeModal();
           renderItems();
         });
       });
     }
+  });
+
+  // Advice picker modal for editor
+  container.querySelector('#btn-add-adv-editor').addEventListener('click', () => {
+    if (!allAdvice.length) { showToast(t('no_advice_available'), 'error'); return; }
+
+    openModal(`
+      <div class="modal-header">
+        <span class="modal-title">${t('select_advice')}</span>
+        <button class="btn-icon" id="modal-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="card">
+          ${allAdvice.map(a => {
+            const title = advTitle(a, lang);
+            const preview = advText(a, lang);
+            return `<div class="card-item" data-pick-adv="${a.id}">
+              <div class="card-item-content">
+                <div class="card-item-title">${esc(title)}</div>
+                <div class="card-item-subtitle">${esc(preview.substring(0, 60))}${preview.length > 60 ? '…' : ''}</div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`, (box) => {
+        box.querySelector('#modal-close').addEventListener('click', closeModal);
+        box.querySelectorAll('[data-pick-adv]').forEach(el => {
+          el.addEventListener('click', () => {
+            const id = parseInt(el.dataset.pickAdv);
+            if (!adviceItems.find(a => a.adviceId === id)) {
+              adviceItems.push({ adviceId: id });
+              renderAdviceItems();
+            }
+            closeModal();
+          });
+        });
+      });
   });
 
   container.querySelector('#btn-save').addEventListener('click', async () => {
@@ -176,6 +274,7 @@ export async function renderWorkoutEditor(container, navigate, editId, returnReg
       name,
       region: container.querySelector('#workout-region').value,
       items,
+      adviceItems,
       createdAt: workout?.createdAt || Date.now(),
     };
 
@@ -199,43 +298,68 @@ export async function renderWorkoutDetail(container, navigate, workoutId, return
 
   if (!workout) { navigate('home', null, null); return; }
 
-  // Session state — starts as copy of workout, changes not saved
-  let sessionItems = (workout.items || []).map(item => ({
-    ...item,
-    frequency: item.frequency || { type: 'daily', timesPerWeek: 1 },
-  }));
-  let sessionAdvice = [];
+  // Session state — starts as copy of workout, changes not saved to DB
+  let sessionItems = (workout.items || []).map(item => {
+    const ex = allExercises.find(e => e.id === item.exerciseId);
+    return {
+      ...item,
+      frequency: item.frequency || ex?.defaultFrequency || { type: 'daily', timesPerWeek: 1 },
+    };
+  });
+
+  // Pre-populate advice from workout's saved adviceItems
+  let sessionAdvice = (workout.adviceItems || []).map(a => allAdvice.find(adv => adv.id === a.adviceId)).filter(Boolean);
+
   let msgLang = uiLang;
 
   function getEx(id) { return allExercises.find(e => e.id === id); }
 
-  // ── Message builder ──
+  // ── Message builder (no title, bilingual advice) ──
   function buildMessage(lang) {
     const parts = [];
     if (msgConfig.greeting?.trim()) parts.push(msgConfig.greeting.trim());
-    parts.push(workout.name);
+    // NOTE: workout title intentionally NOT included
 
-    const exLines = sessionItems.map((item, idx) => {
+    // Group exercises by region for display
+    const byRegion = {};
+    sessionItems.forEach((item) => {
       const ex = getEx(item.exerciseId);
-      if (!ex) return '';
-      const name = lang === 'nl' ? ex.nameNl : ex.nameEn;
-      const freq = item.frequency.type === 'daily'
-        ? tLang('wa_freq_daily', lang)
-        : tLang('wa_freq_weekly', lang, item.frequency.timesPerWeek);
-      const setsReps = `${item.sets} ${tLang('wa_sets', lang)} x ${item.reps} ${tLang('wa_reps', lang)}`;
-      const lines = [`${idx + 1}. ${name}`, `${freq} - ${setsReps}`];
-      const desc = lang === 'nl' ? ex.descriptionNl : ex.descriptionEn;
-      if (msgConfig.showDescriptions && desc?.trim()) lines.push(desc.trim());
-      if (ex.url?.trim()) lines.push(`${tLang('wa_link_label', lang)}: ${ex.url}`);
-      return lines.join('\n');
-    }).filter(Boolean);
+      if (!ex) return;
+      const region = ex.category || '';
+      if (!byRegion[region]) byRegion[region] = [];
+      byRegion[region].push(item);
+    });
+
+    const regionOrder = Object.keys(byRegion).sort();
+    let exNumber = 1;
+
+    const exLines = [];
+    regionOrder.forEach(region => {
+      byRegion[region].forEach(item => {
+        const ex = getEx(item.exerciseId);
+        if (!ex) return;
+        const name = lang === 'nl' ? ex.nameNl : ex.nameEn;
+        const freq = item.frequency.type === 'daily'
+          ? tLang('wa_freq_daily', lang)
+          : tLang('wa_freq_weekly', lang, item.frequency.timesPerWeek);
+        const setsReps = `${item.sets} ${tLang('wa_sets', lang)} x ${item.reps} ${tLang('wa_reps', lang)}`;
+        const lines = [`${exNumber}. ${name}`, `${freq} - ${setsReps}`];
+        const desc = lang === 'nl' ? ex.descriptionNl : ex.descriptionEn;
+        if (msgConfig.showDescriptions && desc?.trim()) lines.push(desc.trim());
+        if (ex.url?.trim()) lines.push(`${tLang('wa_link_label', lang)}: ${ex.url}`);
+        exLines.push(lines.join('\n'));
+        exNumber++;
+      });
+    });
 
     if (exLines.length) parts.push(exLines.join('\n\n'));
 
     for (const adv of sessionAdvice) {
+      const title = advTitle(adv, lang);
+      const text  = advText(adv, lang);
       const lines = [];
-      if (adv.title?.trim()) lines.push(adv.title.trim());
-      if (adv.text?.trim())  lines.push(adv.text.trim());
+      if (title?.trim()) lines.push(title.trim());
+      if (text?.trim())  lines.push(text.trim());
       if (lines.length) parts.push(lines.join('\n'));
     }
 
@@ -308,35 +432,59 @@ export async function renderWorkoutDetail(container, navigate, workoutId, return
     bindActions();
   }
 
-  // ── Session items list ──
+  // ── Session items — sorted by region ──
   function renderSessionItems() {
     const el = container.querySelector('#session-items');
     if (!sessionItems.length) {
       el.innerHTML = `<p style="color:var(--text-secondary);font-size:13px;padding:4px 0 8px">${t('no_exercises_added')}</p>`;
       return;
     }
-    el.innerHTML = sessionItems.map((item, idx) => {
+
+    // Sort by exercise region, then by current order within region
+    const sorted = [...sessionItems].sort((a, b) => {
+      const exA = getEx(a.exerciseId);
+      const exB = getEx(b.exerciseId);
+      return (exA?.category || '').localeCompare(exB?.category || '');
+    });
+
+    // Group by region for rendering
+    const grouped = {};
+    sorted.forEach(item => {
       const ex = getEx(item.exerciseId);
-      if (!ex) return '';
-      const name = uiLang === 'nl' ? ex.nameNl : ex.nameEn;
-      return `
-        <div class="session-exercise-item" data-idx="${idx}">
-          <div class="session-exercise-name">${idx + 1}. ${esc(name)}</div>
-          <div class="session-exercise-controls">
-            <label>${t('sets')}</label>
-            <input type="number" min="1" max="20" value="${item.sets}" data-sets="${idx}">
-            <label>${t('reps')}</label>
-            <input type="number" min="1" max="100" value="${item.reps}" data-reps="${idx}">
-            <div style="flex:1"></div>
-            <button class="btn-icon btn-icon-danger small" data-remove-ex="${idx}">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
-          </div>
-          ${renderFreqUI(`freq-${idx}`, item.frequency)}
-        </div>`;
-    }).join('');
+      const region = ex?.category || '—';
+      if (!grouped[region]) grouped[region] = [];
+      grouped[region].push({ item, originalIdx: sessionItems.indexOf(item) });
+    });
+
+    let numberCounter = 1;
+    let html = '';
+    Object.entries(grouped).sort(([a],[b]) => a.localeCompare(b)).forEach(([region, entries]) => {
+      html += `<div class="session-region-label" style="font-size:12px;font-weight:600;color:var(--text-secondary);padding:8px 0 4px;text-transform:uppercase;letter-spacing:0.04em">${esc(region)}</div>`;
+      entries.forEach(({ item, originalIdx }) => {
+        const ex = getEx(item.exerciseId);
+        if (!ex) return;
+        const name = uiLang === 'nl' ? ex.nameNl : ex.nameEn;
+        const num = numberCounter++;
+        html += `
+          <div class="session-exercise-item" data-idx="${originalIdx}">
+            <div class="session-exercise-name">${num}. ${esc(name)}</div>
+            <div class="session-exercise-controls">
+              <label>${t('sets')}</label>
+              <input type="number" min="1" max="20" value="${item.sets}" data-sets="${originalIdx}">
+              <label>${t('reps')}</label>
+              <input type="number" min="1" max="100" value="${item.reps}" data-reps="${originalIdx}">
+              <div style="flex:1"></div>
+              <button class="btn-icon btn-icon-danger small" data-remove-ex="${originalIdx}">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            ${renderFreqUI(`freq-${originalIdx}`, item.frequency)}
+          </div>`;
+      });
+    });
+    el.innerHTML = html;
 
     // Bind sets/reps
     el.querySelectorAll('[data-sets]').forEach(inp => {
@@ -351,7 +499,7 @@ export async function renderWorkoutDetail(container, navigate, workoutId, return
         updatePreview();
       });
     });
-    // Bind frequency
+    // Bind frequency for each item
     sessionItems.forEach((item, idx) => {
       bindFreqUI(`freq-${idx}`, item.frequency, (freq) => {
         sessionItems[idx].frequency = freq;
@@ -375,18 +523,22 @@ export async function renderWorkoutDetail(container, navigate, workoutId, return
       el.innerHTML = `<p style="color:var(--text-secondary);font-size:13px;padding:4px 0 8px">${t('no_advice_added')}</p>`;
       return;
     }
-    el.innerHTML = sessionAdvice.map((adv, idx) => `
-      <div class="session-advice-item">
-        <div class="session-advice-content">
-          <div class="session-advice-title">${esc(adv.title)}</div>
-          <div class="session-advice-preview">${esc(adv.text)}</div>
-        </div>
-        <button class="btn-icon btn-icon-danger small" data-remove-adv="${idx}">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      </div>`).join('');
+    el.innerHTML = sessionAdvice.map((adv, idx) => {
+      const title   = advTitle(adv, uiLang);
+      const preview = advText(adv, uiLang);
+      return `
+        <div class="session-advice-item">
+          <div class="session-advice-content">
+            <div class="session-advice-title">${esc(title)}</div>
+            <div class="session-advice-preview">${esc(preview)}</div>
+          </div>
+          <button class="btn-icon btn-icon-danger small" data-remove-adv="${idx}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>`;
+    }).join('');
 
     el.querySelectorAll('[data-remove-adv]').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -413,11 +565,35 @@ export async function renderWorkoutDetail(container, navigate, workoutId, return
         return allExercises.filter(ex => {
           const n = lang === 'nl' ? ex.nameNl : ex.nameEn;
           return n.toLowerCase().includes(q.toLowerCase());
-        }).sort((a, b) => (lang === 'nl' ? a.nameNl : a.nameEn).localeCompare(lang === 'nl' ? b.nameNl : b.nameEn));
+        }).sort((a, b) => {
+          const ra = a.category || '';
+          const rb = b.category || '';
+          if (ra !== rb) return ra.localeCompare(rb);
+          return (lang === 'nl' ? a.nameNl : a.nameEn).localeCompare(lang === 'nl' ? b.nameNl : b.nameEn);
+        });
       }
 
       function mHTML() {
         const list = filtered();
+        const grouped = {};
+        list.forEach(ex => {
+          const r = ex.category || '—';
+          if (!grouped[r]) grouped[r] = [];
+          grouped[r].push(ex);
+        });
+        const groupedHTML = Object.entries(grouped).map(([region, exs]) => `
+          <div style="padding:8px 4px 4px;font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase">${esc(region)}</div>
+          ${exs.map(ex => {
+            const n = lang === 'nl' ? ex.nameNl : ex.nameEn;
+            return `<div class="card-item" data-pick="${ex.id}" data-sets="${ex.defaultSets}" data-reps="${ex.defaultReps}">
+              <div class="card-item-content">
+                <div class="card-item-title">${esc(n)}</div>
+                <div class="card-item-subtitle">${ex.defaultSets}×${ex.defaultReps}</div>
+              </div>
+            </div>`;
+          }).join('')}`
+        ).join('');
+
         return `
           <div class="modal-header">
             <span class="modal-title">${t('select_exercise')}</span>
@@ -431,16 +607,7 @@ export async function renderWorkoutDetail(container, navigate, workoutId, return
               <input type="search" id="modal-search" placeholder="${t('search')}" value="${q}" autocomplete="off">
             </div>
             <div class="card">
-              ${!list.length ? `<div style="padding:16px;color:var(--text-secondary)">${t('no_items')}</div>` :
-                list.map(ex => {
-                  const n = lang === 'nl' ? ex.nameNl : ex.nameEn;
-                  return `<div class="card-item" data-pick="${ex.id}" data-sets="${ex.defaultSets}" data-reps="${ex.defaultReps}">
-                    <div class="card-item-content">
-                      <div class="card-item-title">${esc(n)}</div>
-                      <div class="card-item-subtitle">${ex.defaultSets}×${ex.defaultReps}</div>
-                    </div>
-                  </div>`;
-                }).join('')}
+              ${!list.length ? `<div style="padding:16px;color:var(--text-secondary)">${t('no_items')}</div>` : groupedHTML}
             </div>
           </div>`;
       }
@@ -458,11 +625,12 @@ export async function renderWorkoutDetail(container, navigate, workoutId, return
         });
         box.querySelectorAll('[data-pick]').forEach(el => {
           el.addEventListener('click', () => {
+            const ex = allExercises.find(e => e.id === parseInt(el.dataset.pick));
             sessionItems.push({
               exerciseId: parseInt(el.dataset.pick),
               sets: parseInt(el.dataset.sets) || 3,
               reps: parseInt(el.dataset.reps) || 10,
-              frequency: { type: 'daily', timesPerWeek: 1 },
+              frequency: { ...(ex?.defaultFrequency || { type: 'daily', timesPerWeek: 1 }) },
             });
             closeModal();
             renderSessionItems();
@@ -475,10 +643,10 @@ export async function renderWorkoutDetail(container, navigate, workoutId, return
     // Add advice to session
     container.querySelector('#btn-add-advice-session').addEventListener('click', () => {
       if (!allAdvice.length) { showToast(t('no_advice_available'), 'error'); return; }
-      const regionAdvice = workout.region
+      const display = workout.region
         ? allAdvice.filter(a => !a.region || a.region === workout.region)
         : allAdvice;
-      const display = regionAdvice.length ? regionAdvice : allAdvice;
+      const list = display.length ? display : allAdvice;
 
       openModal(`
         <div class="modal-header">
@@ -487,13 +655,16 @@ export async function renderWorkoutDetail(container, navigate, workoutId, return
         </div>
         <div class="modal-body">
           <div class="card">
-            ${display.map(a => `
-              <div class="card-item" data-pick-adv="${a.id}">
+            ${list.map(a => {
+              const title   = advTitle(a, uiLang);
+              const preview = advText(a, uiLang);
+              return `<div class="card-item" data-pick-adv="${a.id}">
                 <div class="card-item-content">
-                  <div class="card-item-title">${esc(a.title)}</div>
-                  <div class="card-item-subtitle">${esc(a.text.substring(0, 60))}${a.text.length > 60 ? '…' : ''}</div>
+                  <div class="card-item-title">${esc(title)}</div>
+                  <div class="card-item-subtitle">${esc(preview.substring(0, 60))}${preview.length > 60 ? '…' : ''}</div>
                 </div>
-              </div>`).join('')}
+              </div>`;
+            }).join('')}
           </div>
         </div>`, (box) => {
           box.querySelector('#modal-close').addEventListener('click', closeModal);

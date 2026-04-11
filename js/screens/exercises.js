@@ -172,6 +172,10 @@ export async function renderExerciseForm(container, navigate, editId) {
             <input class="form-input" id="defaultReps" type="number" min="1" max="100" value="${exercise?.defaultReps ?? 10}">
           </div>
         </div>
+        <div class="form-group">
+          <label class="form-label">${t('exercise_default_freq')}</label>
+          ${renderFreqUI('def-freq', exercise?.defaultFrequency || { type: 'daily', timesPerWeek: 1 })}
+        </div>
       </div>
 
       <div class="form-section">
@@ -193,6 +197,10 @@ export async function renderExerciseForm(container, navigate, editId) {
     </div>
   `;
 
+  // Track default frequency via freq UI binding
+  let defFreq = { ...(exercise?.defaultFrequency || { type: 'daily', timesPerWeek: 1 }) };
+  bindFreqUI('def-freq', defFreq, (f) => { defFreq = f; });
+
   container.querySelector('#btn-save-exercise').addEventListener('click', async () => {
     const nameNl = container.querySelector('#nameNl').value.trim();
     const nameEn = container.querySelector('#nameEn').value.trim();
@@ -210,6 +218,7 @@ export async function renderExerciseForm(container, navigate, editId) {
       url: container.querySelector('#url').value.trim(),
       defaultSets: parseInt(container.querySelector('#defaultSets').value) || 3,
       defaultReps: parseInt(container.querySelector('#defaultReps').value) || 10,
+      defaultFrequency: { ...defFreq },
       descriptionNl: container.querySelector('#descNl').value.trim(),
       descriptionEn: container.querySelector('#descEn').value.trim(),
       createdAt: exercise?.createdAt || Date.now(),
@@ -248,7 +257,7 @@ export async function renderExerciseSend(container, navigate, exerciseId) {
     exerciseId,
     sets: exercise.defaultSets || 3,
     reps: exercise.defaultReps || 10,
-    frequency: { type: 'daily', timesPerWeek: 1 },
+    frequency: { ...(exercise.defaultFrequency || { type: 'daily', timesPerWeek: 1 }) },
   };
 
   function buildMessage(lang) {

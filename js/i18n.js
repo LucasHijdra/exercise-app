@@ -43,6 +43,7 @@ const translations = {
     exercise_desc_en: 'Instructies (Engels)',
     exercise_default_sets: 'Standaard sets',
     exercise_default_reps: 'Standaard herhalingen',
+    exercise_default_freq: 'Standaard frequentie',
     exercise_url: 'Link (instructiepagina / video)',
     exercise_region: 'Regio',
     exercise_info: 'Oefening info',
@@ -104,8 +105,10 @@ const translations = {
     edit_advice: 'Advies bewerken',
     advice_empty: 'Nog geen standaard advies. Tik + om te beginnen.',
     advice_region: 'Regio',
-    advice_title_field: 'Titel',
-    advice_text_field: 'Advies tekst',
+    advice_title_nl: 'Titel (Nederlands) *',
+    advice_title_en: 'Titel (Engels) *',
+    advice_text_nl: 'Advies tekst (Nederlands)',
+    advice_text_en: 'Advies tekst (Engels)',
     advice_info: 'Advies info',
 
     // Settings
@@ -178,6 +181,7 @@ const translations = {
     exercise_desc_en: 'Instructions (English)',
     exercise_default_sets: 'Default sets',
     exercise_default_reps: 'Default reps',
+    exercise_default_freq: 'Default frequency',
     exercise_url: 'Link (instruction page / video)',
     exercise_region: 'Region',
     exercise_info: 'Exercise info',
@@ -239,8 +243,10 @@ const translations = {
     edit_advice: 'Edit advice',
     advice_empty: 'No standard advice yet. Tap + to get started.',
     advice_region: 'Region',
-    advice_title_field: 'Title',
-    advice_text_field: 'Advice text',
+    advice_title_nl: 'Title (Dutch) *',
+    advice_title_en: 'Title (English) *',
+    advice_text_nl: 'Advice text (Dutch)',
+    advice_text_en: 'Advice text (English)',
     advice_info: 'Advice info',
 
     // Settings
