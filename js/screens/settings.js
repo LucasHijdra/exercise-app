@@ -51,6 +51,14 @@ export async function renderSettings(container, navigate) {
           <label class="form-label" for="msg-greeting-nl">Aanhef</label>
           <textarea class="form-textarea" id="msg-greeting-nl" rows="2" placeholder="Bijv. Beste cliënt,">${esc(msgConfig.greetingNl || '')}</textarea>
         </div>
+        <div class="form-group" style="padding:0 16px 8px">
+          <label class="form-label" for="msg-exercise-intro-nl">Inleiding oefeningen</label>
+          <textarea class="form-textarea" id="msg-exercise-intro-nl" rows="2" placeholder="Bijv. Hieronder de oefeningen die we besproken hebben:">${esc(msgConfig.exerciseIntroNl || '')}</textarea>
+        </div>
+        <div class="form-group" style="padding:0 16px 8px">
+          <label class="form-label" for="msg-advice-intro-nl">Inleiding advies</label>
+          <textarea class="form-textarea" id="msg-advice-intro-nl" rows="2" placeholder="Bijv. Houd rekening met het volgende:">${esc(msgConfig.adviceIntroNl || '')}</textarea>
+        </div>
         <div class="form-group" style="padding:0 16px 12px">
           <label class="form-label" for="msg-closing-nl">Afsluiting</label>
           <textarea class="form-textarea" id="msg-closing-nl" rows="2" placeholder="Bijv. Met vriendelijke groet,">${esc(msgConfig.closingNl || '')}</textarea>
@@ -60,6 +68,14 @@ export async function renderSettings(container, navigate) {
         <div class="form-group" style="padding:4px 16px 8px">
           <label class="form-label" for="msg-greeting-en">Greeting</label>
           <textarea class="form-textarea" id="msg-greeting-en" rows="2" placeholder="E.g. Dear client,">${esc(msgConfig.greetingEn || '')}</textarea>
+        </div>
+        <div class="form-group" style="padding:0 16px 8px">
+          <label class="form-label" for="msg-exercise-intro-en">Exercise intro</label>
+          <textarea class="form-textarea" id="msg-exercise-intro-en" rows="2" placeholder="E.g. Below are the exercises we discussed:">${esc(msgConfig.exerciseIntroEn || '')}</textarea>
+        </div>
+        <div class="form-group" style="padding:0 16px 8px">
+          <label class="form-label" for="msg-advice-intro-en">Advice intro</label>
+          <textarea class="form-textarea" id="msg-advice-intro-en" rows="2" placeholder="E.g. Please keep the following in mind:">${esc(msgConfig.adviceIntroEn || '')}</textarea>
         </div>
         <div class="form-group" style="padding:0 16px 12px">
           <label class="form-label" for="msg-closing-en">Closing</label>
@@ -219,12 +235,16 @@ export async function renderSettings(container, navigate) {
     if (e.key === 'Enter') container.querySelector('#btn-add-region').click();
   });
 
-  // Save message config — all four fields in one go, no language dependency
+  // Save message config — all fields in one go, no language dependency
   container.querySelector('#btn-save-msg-config').addEventListener('click', async () => {
     await saveMsgConfig({
       greetingNl:       container.querySelector('#msg-greeting-nl').value.trim(),
+      exerciseIntroNl:  container.querySelector('#msg-exercise-intro-nl').value.trim(),
+      adviceIntroNl:    container.querySelector('#msg-advice-intro-nl').value.trim(),
       closingNl:        container.querySelector('#msg-closing-nl').value.trim(),
       greetingEn:       container.querySelector('#msg-greeting-en').value.trim(),
+      exerciseIntroEn:  container.querySelector('#msg-exercise-intro-en').value.trim(),
+      adviceIntroEn:    container.querySelector('#msg-advice-intro-en').value.trim(),
       closingEn:        container.querySelector('#msg-closing-en').value.trim(),
       showDescriptions: container.querySelector('#msg-show-desc').checked,
     });

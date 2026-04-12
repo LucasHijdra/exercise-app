@@ -1077,7 +1077,7 @@ html[data-theme="dark"] .toast:not(.success):not(.error) {
   overflow: hidden;
 }
 
-/* Message preview */
+/* Message preview (editable textarea) */
 .msg-preview {
   background: var(--surface-2);
   border: 1.5px solid var(--border);
@@ -1090,6 +1090,10 @@ html[data-theme="dark"] .toast:not(.success):not(.error) {
   color: var(--text);
   font-family: inherit;
   margin-bottom: 12px;
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 120px;
 }
 
 html[data-theme="dark"] .msg-preview {
