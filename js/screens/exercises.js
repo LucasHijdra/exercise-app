@@ -280,10 +280,12 @@ export async function renderExerciseSend(container, navigate, exerciseId) {
     if (msgConfig.showDescriptions && desc?.trim()) lines.push(desc.trim());
     if (exercise.url?.trim()) lines.push(`${tLang('wa_link_label', lang)}: ${exercise.url}`);
 
-    const greeting = lang === 'nl' ? (msgConfig.greetingNl || '') : (msgConfig.greetingEn || '');
-    const closing  = lang === 'nl' ? (msgConfig.closingNl  || '') : (msgConfig.closingEn  || '');
+    const greeting      = lang === 'nl' ? (msgConfig.greetingNl      || '') : (msgConfig.greetingEn      || '');
+    const exerciseIntro = lang === 'nl' ? (msgConfig.exerciseIntroNl || '') : (msgConfig.exerciseIntroEn || '');
+    const closing       = lang === 'nl' ? (msgConfig.closingNl       || '') : (msgConfig.closingEn       || '');
     const parts = [];
     if (greeting.trim()) parts.push(greeting.trim());
+    if (exerciseIntro.trim()) parts.push(exerciseIntro.trim());
     parts.push(lines.join('\n'));
     if (closing.trim()) parts.push(closing.trim());
     return parts.join('\n\n');
@@ -332,7 +334,7 @@ export async function renderExerciseSend(container, navigate, exerciseId) {
           </div>
         </div>
 
-        <div class="msg-preview" id="msg-preview">${esc(buildMessage(msgLang))}</div>
+        <textarea class="msg-preview" id="msg-preview" rows="10">${esc(buildMessage(msgLang))}</textarea>
 
         <button class="btn btn-primary btn-full" id="btn-copy">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -362,19 +364,20 @@ export async function renderExerciseSend(container, navigate, exerciseId) {
     container.querySelector('#msg-en').addEventListener('click', () => { msgLang = 'en'; updateLangToggle(); updatePreview(); });
 
     container.querySelector('#btn-copy').addEventListener('click', async () => {
+      const text = container.querySelector('#msg-preview').value;
       try {
-        await navigator.clipboard.writeText(buildMessage(msgLang));
+        await navigator.clipboard.writeText(text);
         showToast(t('message_copied'), 'success');
       } catch {
         showToast(t('copy_failed'), 'error');
-        selectText(container.querySelector('#msg-preview'));
+        container.querySelector('#msg-preview').select();
       }
     });
   }
 
   function updatePreview() {
     const el = container.querySelector('#msg-preview');
-    if (el) el.textContent = buildMessage(msgLang);
+    if (el) el.value = buildMessage(msgLang);
   }
 
   function updateLangToggle() {
@@ -427,9 +430,3 @@ export function bindFreqUI(prefix, freq, onChange) {
   }
 }
 
-function selectText(el) {
-  const range = document.createRange();
-  range.selectNodeContents(el);
-  window.getSelection().removeAllRanges();
-  window.getSelection().addRange(range);
-}

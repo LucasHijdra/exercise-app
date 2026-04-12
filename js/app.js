@@ -73,23 +73,36 @@ export async function saveRegions(regions) {
 // ─────────────────────────────────────────
 // Message Config
 // ─────────────────────────────────────────
-const DEFAULT_MSG_CONFIG = { greetingNl: '', greetingEn: '', closingNl: '', closingEn: '', showDescriptions: true };
+const DEFAULT_MSG_CONFIG = {
+  greetingNl: '', greetingEn: '',
+  exerciseIntroNl: '', exerciseIntroEn: '',
+  adviceIntroNl: '', adviceIntroEn: '',
+  closingNl: '', closingEn: '',
+  showDescriptions: true,
+};
 
 export async function getMsgConfig() {
   try {
     const s = await getOne('settings', 'msgConfig');
     if (s?.value) {
       const v = { ...s.value };
+      let migrated = false;
       // Backwards compatibility: migrate single greeting/closing to bilingual fields
       if (v.greeting !== undefined && v.greetingNl === undefined) {
         v.greetingNl = v.greeting || '';
         delete v.greeting;
+        migrated = true;
       }
       if (v.closing !== undefined && v.closingNl === undefined) {
         v.closingNl = v.closing || '';
         delete v.closing;
+        migrated = true;
       }
-      return { ...DEFAULT_MSG_CONFIG, ...v };
+      const result = { ...DEFAULT_MSG_CONFIG, ...v };
+      if (migrated) {
+        try { await putItem('settings', { key: 'msgConfig', value: result }); } catch (_) {}
+      }
+      return result;
     }
   } catch (_) {}
   return { ...DEFAULT_MSG_CONFIG };

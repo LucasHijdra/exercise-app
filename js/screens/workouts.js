@@ -327,13 +327,14 @@ export async function renderWorkoutDetail(container, navigate, workoutId, return
 
   function getEx(id) { return allExercises.find(e => e.id === id); }
 
-  // ── Message builder (no title, bilingual advice) ──
+  // ── Message builder (bilingual, no workout title) ──
   function buildMessage(lang) {
-    const greeting = lang === 'nl' ? (msgConfig.greetingNl || '') : (msgConfig.greetingEn || '');
-    const closing  = lang === 'nl' ? (msgConfig.closingNl  || '') : (msgConfig.closingEn  || '');
+    const greeting      = lang === 'nl' ? (msgConfig.greetingNl      || '') : (msgConfig.greetingEn      || '');
+    const exerciseIntro = lang === 'nl' ? (msgConfig.exerciseIntroNl || '') : (msgConfig.exerciseIntroEn || '');
+    const adviceIntro   = lang === 'nl' ? (msgConfig.adviceIntroNl   || '') : (msgConfig.adviceIntroEn   || '');
+    const closing       = lang === 'nl' ? (msgConfig.closingNl       || '') : (msgConfig.closingEn       || '');
     const parts = [];
     if (greeting.trim()) parts.push(greeting.trim());
-    // NOTE: workout title intentionally NOT included
 
     // Group exercises by region for display
     const byRegion = {};
@@ -375,15 +376,23 @@ export async function renderWorkoutDetail(container, navigate, workoutId, return
       });
     });
 
-    if (exLines.length) parts.push(exLines.join('\n\n'));
+    if (exLines.length) {
+      if (exerciseIntro.trim()) parts.push(exerciseIntro.trim());
+      parts.push(exLines.join('\n\n'));
+    }
 
+    const advParts = [];
     for (const adv of sessionAdvice) {
       const title = advTitle(adv, lang);
       const text  = advText(adv, lang);
       const lines = [];
       if (title?.trim()) lines.push(title.trim());
       if (text?.trim())  lines.push(text.trim());
-      if (lines.length) parts.push(lines.join('\n'));
+      if (lines.length) advParts.push(lines.join('\n'));
+    }
+    if (advParts.length) {
+      if (adviceIntro.trim()) parts.push(adviceIntro.trim());
+      advParts.forEach(p => parts.push(p));
     }
 
     if (closing.trim()) parts.push(closing.trim());
@@ -438,7 +447,7 @@ export async function renderWorkoutDetail(container, navigate, workoutId, return
           </div>
         </div>
 
-        <div class="msg-preview" id="msg-preview">${esc(buildMessage(msgLang))}</div>
+        <textarea class="msg-preview" id="msg-preview" rows="12">${esc(buildMessage(msgLang))}</textarea>
 
         <button class="btn btn-primary btn-full" id="btn-copy-msg">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -733,25 +742,22 @@ export async function renderWorkoutDetail(container, navigate, workoutId, return
     container.querySelector('#msg-lang-nl').addEventListener('click', () => { msgLang = 'nl'; updateLangToggle(); updatePreview(); });
     container.querySelector('#msg-lang-en').addEventListener('click', () => { msgLang = 'en'; updateLangToggle(); updatePreview(); });
 
-    // Copy
+    // Copy (reads from the textarea so user edits are preserved)
     container.querySelector('#btn-copy-msg').addEventListener('click', async () => {
+      const text = container.querySelector('#msg-preview').value;
       try {
-        await navigator.clipboard.writeText(buildMessage(msgLang));
+        await navigator.clipboard.writeText(text);
         showToast(t('message_copied'), 'success');
       } catch {
         showToast(t('copy_failed'), 'error');
-        const el = container.querySelector('#msg-preview');
-        const range = document.createRange();
-        range.selectNodeContents(el);
-        window.getSelection().removeAllRanges();
-        window.getSelection().addRange(range);
+        container.querySelector('#msg-preview').select();
       }
     });
   }
 
   function updatePreview() {
     const el = container.querySelector('#msg-preview');
-    if (el) el.textContent = buildMessage(msgLang);
+    if (el) el.value = buildMessage(msgLang);
   }
 
   function updateLangToggle() {
