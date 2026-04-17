@@ -99,6 +99,13 @@ const translations = {
     wa_freq_daily: 'Elke dag',
     wa_freq_weekly: (n) => `${n}x per week`,
 
+    // Images
+    exercise_images_section: 'Afbeeldingen',
+    add_image_btn: 'Afbeelding toevoegen',
+    share_with_images: 'Delen met afbeeldingen',
+    images_hint: 'Voeg afbeeldingen handmatig toe in WhatsApp',
+    session_images_title: 'Afbeeldingen',
+
     // Advice
     advice_title: 'Standaard advies',
     add_advice: 'Advies toevoegen',
@@ -236,6 +243,13 @@ const translations = {
     wa_link_label: 'Instructions',
     wa_freq_daily: 'Every day',
     wa_freq_weekly: (n) => `${n}x per week`,
+
+    // Images
+    exercise_images_section: 'Images',
+    add_image_btn: 'Add image',
+    share_with_images: 'Share with images',
+    images_hint: 'Add images manually in WhatsApp',
+    session_images_title: 'Images',
 
     // Advice
     advice_title: 'Standard advice',

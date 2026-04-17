@@ -5,7 +5,7 @@ import { getAll, getOne, addItem, putItem, deleteItem } from '../db.js';
 import { t, tLang, getLang } from '../i18n.js';
 import { showToast, showConfirm, openModal, closeModal,
          getRegions, getMsgConfig, esc } from '../app.js';
-import { renderFreqUI, bindFreqUI } from './exercises.js';
+import { renderFreqUI, bindFreqUI, shareWithImages } from './exercises.js';
 import { advTitle, advText } from './advice.js';
 
 // ─────────────────────────────────────────
@@ -449,7 +449,31 @@ export async function renderWorkoutDetail(container, navigate, workoutId, return
 
         <textarea class="msg-preview" id="msg-preview" rows="12">${esc(buildMessage(msgLang))}</textarea>
 
-        <button class="btn btn-primary btn-full" id="btn-copy-msg">
+        ${(() => {
+          const imgs = sessionItems.flatMap(item => getEx(item.exerciseId)?.images || []);
+          if (!imgs.length) return '';
+          return `
+          <div class="session-section-header" style="margin-top:16px">
+            <span class="session-section-title">${t('session_images_title')}</span>
+          </div>
+          <div class="image-grid" id="session-image-grid">
+            ${imgs.map(src => `<div class="image-thumb image-thumb-view"><img src="${src}" alt=""></div>`).join('')}
+          </div>`;
+        })()}
+
+        ${(() => {
+          const hasImgs = sessionItems.some(item => (getEx(item.exerciseId)?.images || []).length > 0);
+          return hasImgs ? `
+          <button class="btn btn-primary btn-full" id="btn-share-msg" style="margin-bottom:8px">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+            </svg>
+            ${t('share_with_images')}
+          </button>` : '';
+        })()}
+
+        <button class="btn ${sessionItems.some(i => (getEx(i.exerciseId)?.images || []).length) ? 'btn-secondary' : 'btn-primary'} btn-full" id="btn-copy-msg">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
@@ -752,6 +776,12 @@ export async function renderWorkoutDetail(container, navigate, workoutId, return
         showToast(t('copy_failed'), 'error');
         container.querySelector('#msg-preview').select();
       }
+    });
+
+    container.querySelector('#btn-share-msg')?.addEventListener('click', async () => {
+      const text = container.querySelector('#msg-preview').value;
+      const imgs = sessionItems.flatMap(item => getEx(item.exerciseId)?.images || []);
+      await shareWithImages(text, imgs);
     });
   }
 
