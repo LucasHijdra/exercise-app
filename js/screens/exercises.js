@@ -199,6 +199,19 @@ export async function renderExerciseForm(container, navigate, editId) {
       </div>
 
       <div class="form-section">
+        <div class="form-section-title">${t('exercise_images_section')}</div>
+        <div id="img-preview-grid" class="image-grid"></div>
+        <input type="file" id="img-file-input" accept="image/*" multiple style="display:none">
+        <button class="btn btn-secondary" id="btn-add-image" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+          ${t('add_image_btn')}
+        </button>
+      </div>
+
+      <div class="form-section">
         <button class="btn btn-primary btn-full" id="btn-save-exercise">${t('save')}</button>
         ${editId ? `<button class="btn btn-danger-outline btn-full mt-8" id="btn-delete-exercise">${t('delete')}</button>` : ''}
       </div>
@@ -208,6 +221,40 @@ export async function renderExerciseForm(container, navigate, editId) {
   // Track default frequency via freq UI binding
   let defFreq = { ...(exercise?.defaultFrequency || { type: 'daily', timesPerWeek: 1 }) };
   bindFreqUI('def-freq', defFreq, (f) => { defFreq = f; });
+
+  let exerciseImages = [...(exercise?.images || [])];
+
+  function renderImageGrid() {
+    const grid = container.querySelector('#img-preview-grid');
+    if (!exerciseImages.length) { grid.innerHTML = ''; return; }
+    grid.innerHTML = exerciseImages.map((src, i) => `
+      <div class="image-thumb">
+        <img src="${src}" alt="">
+        <button class="image-thumb-remove" data-remove-img="${i}" aria-label="${t('delete')}">✕</button>
+      </div>`).join('');
+    grid.querySelectorAll('[data-remove-img]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        exerciseImages.splice(parseInt(btn.dataset.removeImg), 1);
+        renderImageGrid();
+      });
+    });
+  }
+
+  renderImageGrid();
+
+  container.querySelector('#btn-add-image').addEventListener('click', () => {
+    container.querySelector('#img-file-input').click();
+  });
+
+  container.querySelector('#img-file-input').addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files);
+    for (const file of files) {
+      const compressed = await compressImage(file);
+      exerciseImages.push(compressed);
+    }
+    renderImageGrid();
+    e.target.value = '';
+  });
 
   container.querySelector('#btn-save-exercise').addEventListener('click', async () => {
     const nameNl = container.querySelector('#nameNl').value.trim();
@@ -229,6 +276,7 @@ export async function renderExerciseForm(container, navigate, editId) {
       defaultFrequency: { ...defFreq },
       descriptionNl: container.querySelector('#descNl').value.trim(),
       descriptionEn: container.querySelector('#descEn').value.trim(),
+      images: exerciseImages,
       createdAt: exercise?.createdAt || Date.now(),
     };
 
@@ -291,6 +339,8 @@ export async function renderExerciseSend(container, navigate, exerciseId) {
     return parts.join('\n\n');
   }
 
+  const exImages = exercise.images || [];
+
   function render() {
     const exName = uiLang === 'nl' ? exercise.nameNl : exercise.nameEn;
     container.innerHTML = `
@@ -300,6 +350,11 @@ export async function renderExerciseSend(container, navigate, exerciseId) {
           <div style="font-size:16px;font-weight:700;color:var(--text)">${esc(exName)}</div>
           ${exercise.category ? `<span class="badge" style="margin-top:4px">${esc(exercise.category)}</span>` : ''}
         </div>
+
+        ${exImages.length ? `
+        <div class="image-grid" style="margin-bottom:12px">
+          ${exImages.map(src => `<div class="image-thumb image-thumb-view"><img src="${src}" alt=""></div>`).join('')}
+        </div>` : ''}
 
         <!-- Sets / Reps -->
         <div class="form-section">
@@ -336,7 +391,16 @@ export async function renderExerciseSend(container, navigate, exerciseId) {
 
         <textarea class="msg-preview" id="msg-preview" rows="10">${esc(buildMessage(msgLang))}</textarea>
 
-        <button class="btn btn-primary btn-full" id="btn-copy">
+        ${exImages.length ? `
+        <button class="btn btn-primary btn-full" id="btn-share" style="margin-bottom:8px">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+          </svg>
+          ${t('share_with_images')}
+        </button>` : ''}
+
+        <button class="btn ${exImages.length ? 'btn-secondary' : 'btn-primary'} btn-full" id="btn-copy">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
@@ -372,6 +436,11 @@ export async function renderExerciseSend(container, navigate, exerciseId) {
         showToast(t('copy_failed'), 'error');
         container.querySelector('#msg-preview').select();
       }
+    });
+
+    container.querySelector('#btn-share')?.addEventListener('click', async () => {
+      const text = container.querySelector('#msg-preview').value;
+      await shareWithImages(text, exImages);
     });
   }
 
@@ -427,6 +496,53 @@ export function bindFreqUI(prefix, freq, onChange) {
       freq.timesPerWeek = parseInt(timesInput.value) || 1;
       onChange({ ...freq });
     });
+  }
+}
+
+// ─────────────────────────────────────────
+// Image helpers (exported for workouts.js)
+// ─────────────────────────────────────────
+export function compressImage(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 1200;
+        let { width: w, height: h } = img;
+        if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.75));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function shareWithImages(text, images) {
+  if (images.length && navigator.canShare) {
+    try {
+      const files = await Promise.all(images.map(async (dataUrl, i) => {
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        return new File([blob], `image${i + 1}.jpg`, { type: 'image/jpeg' });
+      }));
+      if (navigator.canShare({ files })) {
+        await navigator.share({ text, files });
+        return;
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast(t('message_copied'), 'success');
+  } catch {
+    showToast(t('copy_failed'), 'error');
   }
 }
 
